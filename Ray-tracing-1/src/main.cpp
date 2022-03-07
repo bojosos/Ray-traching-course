@@ -27,7 +27,6 @@ void WriteRectangles()
 
 	const int xStep = imageWidth / rectangleCount;
 	const int yStep = imageHeight / rectangleCount;
-	std::cout << xStep << " " << yStep << std::endl;
 	color col { 0, 0 ,0 };
 
 	for (int rowIdx = 0; rowIdx < imageHeight; ++rowIdx) {
