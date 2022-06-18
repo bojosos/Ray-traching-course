@@ -194,6 +194,12 @@ struct ThreadManager {
 		threads.clear();
 		currentTask.clear();
 	}
+	
+	bool isRunning()
+	{
+		std::lock_guard<std::mutex> lock(workMtx);
+		return running;
+	}
 
 	/// Get the number of worker threads
 	int getThreadCount() const {

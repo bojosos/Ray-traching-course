@@ -1,0 +1,6 @@
+[submodule "glfw"]
+	path = glfw
+	url = https://github.com/bojosos/glfw
+[submodule "src/third_party/imgui"]
+	path = src/third_party/imgui
+	url = https://github.com/bojosos/imgui

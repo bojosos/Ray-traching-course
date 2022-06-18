@@ -54,16 +54,16 @@ void Instancer::Instance::expandBox(BBox &other) {
 	other.add(transformed);
 }
 
-void Instancer::onBeforeRender() {
+void Instancer::onBeforeRender(AcceleratorType acceleratorType) {
 	for (int c = 0; c < instances.size(); c++) {
-		instances[c].primitive->onBeforeRender();
+		instances[c].primitive->onBeforeRender(acceleratorType);
 	}
 	if (instances.size() < 50) {
 		return;
 	}
 
 	if (!accelerator) {
-		accelerator = makeDefaultAccelerator();
+		accelerator = makeAccelerator(acceleratorType);
 	}
 	if (!accelerator->isBuilt()) {
 		accelerator->clear();

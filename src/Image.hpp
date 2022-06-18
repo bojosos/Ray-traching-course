@@ -33,8 +33,8 @@ typedef vec3 Color;
 
 /// Image used while rendering with 32 bit float for each color component
 struct ImageData {
-	int width;
-	int height;
+	int width = 0;
+	int height = 0;
 	std::vector<Color> pixels;
 
 	void init(int w, int h) {
@@ -63,6 +63,7 @@ struct ImageData {
 		return img;
 	}
 
+	// wtf is this, who does this
 	Color &operator()(int col, int row) {
 		return pixels[row * width + col];
 	}

@@ -27,10 +27,9 @@ struct TriangleMesh : Primitive {
 		loadFromObj(objFile);
 	}
 
-	void onBeforeRender() override;
+	void onBeforeRender(AcceleratorType acceleratorType) override;
 	bool loadFromObj(const std::string &objPath);
 
 	bool intersect(const Ray &ray, float tMin, float tMax, Intersection &intersection) override;
 	bool intersectTriangle(const Ray& ray, const Triangle &t, Intersection &info);
 };
-

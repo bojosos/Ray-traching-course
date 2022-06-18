@@ -167,13 +167,13 @@ void TriangleMesh::Triangle::expandBox(BBox& box) {
 	}
 }
 
-void TriangleMesh::onBeforeRender() {
+void TriangleMesh::onBeforeRender(AcceleratorType acceleratorType) {
 	if (faces.size() < 50) {
 		return;
 	}
 
 	if (!accelerator) {
-		accelerator = makeDefaultAccelerator();
+		accelerator = makeAccelerator(acceleratorType);
 	}
 
 	if (!accelerator->isBuilt()) {

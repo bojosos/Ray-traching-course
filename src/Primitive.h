@@ -6,6 +6,13 @@
 #include <vector>
 #include <memory>
 
+enum class AcceleratorType
+{
+	Octtree,
+	BVH,
+	KDTree
+};
+
 /// Data for an intersection between a ray and scene primitive
 struct Intersection {
 	float t = -1.f; ///< Position of the intersection along the ray
@@ -41,7 +48,7 @@ struct Primitive : Intersectable {
 
 	/// @brief Called after scene is fully created and before rendering starts
 	///	       Used to build acceleration structures
-	virtual void onBeforeRender() {}
+	virtual void onBeforeRender(AcceleratorType acceleratorType) {}
 
 	/// @brief Default implementation intersecting the bbox of the primitive, overriden if possible more efficiently
 	bool boxIntersect(const BBox& other) override {
@@ -88,7 +95,7 @@ struct IntersectionAccelerator {
 };
 
 typedef std::unique_ptr<IntersectionAccelerator> AcceleratorPtr;
-AcceleratorPtr makeDefaultAccelerator();
+AcceleratorPtr makeAccelerator(AcceleratorType acceleratorType);
 
 /// Simple smooth sphere primitive
 struct SpherePrim : Primitive {
@@ -119,7 +126,7 @@ private:
 
 	AcceleratorPtr accelerator;
 public:
-	void onBeforeRender() override;
+	void onBeforeRender(AcceleratorType acceleratorType) override;
 
 	void addInstance(SharedPrimPtr prim, const vec3 &offset = vec3(0.f), float scale = 1.f, SharedMaterialPtr material = nullptr);
 

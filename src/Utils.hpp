@@ -255,6 +255,34 @@ struct BBox {
 		parts[7] = BBox{vec3{center.x, center.y, min.z}, vec3{max.x, max.y, center.z}};
 	}
 
+	// Calculates the area of this bounding box
+	float area() const
+	{
+		vec3 d = max - min;
+		return 2 * (d.x * d.y + d.x * d.z + d.y * d.z);
+	}
+
+	// Returns the axis index of the max extent, x = 0, y = 1, z = 2
+	int maxExtent() const
+	{		
+		vec3 d = max - min;
+		if (d.x > d.y && d.x > d.z)
+			return 0;
+		else if (d.y > d.z)
+			return 1;
+		return 2;
+	}
+	
+	// How far in our box the point is. { 0, 0, 0 } = min, { 1, 1, 1 } = max
+	vec3 offset(const vec3& point) const
+	{
+		vec3 out = point - min;
+		if (max.x > min.x) out.x /= max.x - min.x;
+		if (max.y > min.y) out.y /= max.y - min.y;
+		if (max.z > min.z) out.z /= max.z - min.z;
+		return out;
+	}
+
 	/// @brief Compute the intersection with another box
 	///	@return empty box if there is no intersection
 	BBox boxIntersection(const BBox &other) const {
