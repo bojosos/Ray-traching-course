@@ -144,7 +144,6 @@ struct OctTree : IntersectionAccelerator {
 	}
 };
 
-const int maxPrimsInNode = 2;
 // HLBVH
 struct BVHTree : IntersectionAccelerator {
 
@@ -212,6 +211,8 @@ struct BVHTree : IntersectionAccelerator {
 	std::vector<Intersectable*> m_OrderedPrims;
 	std::vector<Intersectable*> m_FinalPrims;
 	LinearNode* m_SearchNodes = nullptr;
+	uint32_t m_MaxPrimsPerNode = 1;
+	float m_IntersectionCost = 1.0f; // cost of calculating intersection
 
 	uint32_t m_PrimIdx = 0;
 
@@ -251,6 +252,16 @@ struct BVHTree : IntersectionAccelerator {
 
 	void build(Purpose purpose) override
 	{
+		if (purpose == Purpose::Instances) // maybe makes a difference?
+		{
+			m_MaxPrimsPerNode = 1;
+			m_IntersectionCost = 2.0f
+		}
+		else
+		{
+			m_MaxPrimsPerNode = 4;
+			m_IntersectionCost = 1.0f
+		}
 		Timer timer;
 		printf("Building %s BVH with %d primitives\n", purpose == Purpose::Instances ? "instancing" : "mesh", (int)m_Primitives.size());
 		BBox bounds;
@@ -329,7 +340,7 @@ struct BVHTree : IntersectionAccelerator {
 
 	Node* buildTreelets(Node *&buildNodes, MortonPrim* mortonPrims, int primitiveCount, int& totalNodes, int& orderedPrimsOffset, int bitIdx)
 	{
-		if (bitIdx == -1 || primitiveCount < maxPrimsInNode) // We need to create a leaf, either because we can fit the nodes left in a single leaf, or because we can't split
+		if (bitIdx == -1 || primitiveCount < m_MaxPrimsPerNode) // We need to create a leaf, either because we can fit the nodes left in a single leaf, or because we can't split
 		{
 			totalNodes++;
 			Node* node = buildNodes++;
@@ -510,7 +521,6 @@ BVHTree::Node* BVHTree::connectTreelets(std::vector<Node*>& roots, int start, in
 	}
 
 	const float traversalCost = 0.125f; // cost of figuring out which child to visit
-	const float intersectionCost = 1.0f; // cost of calculating intersection, since here it also goes through a few virtual calls it should be slower
 
 	float cost[bucketCount - 1];
 	// printf("Start: %d, end: %d, dim: %d\n", start, end, dim);
@@ -531,7 +541,7 @@ BVHTree::Node* BVHTree::connectTreelets(std::vector<Node*>& roots, int start, in
 			b1.add(buckets[j].bounds);
 			count1 += buckets[j].count;
 		}
-		cost[i] = traversalCost + intersectionCost * (count0 * b0.area() + count1 * b1.area()) / bounds.area();
+		cost[i] = traversalCost + m_IntersectionCost * (count0 * b0.area() + count1 * b1.area()) / bounds.area();
 	}
 
 	float minCost = cost[0];
@@ -639,8 +649,6 @@ BVHTree::Node* BVHTree::connectTreelets(std::vector<Node*>& roots, int start, in
 
 #include "Primitive.h"
 
-const uint32_t maxPrims = 4;
-const float intersectionCost = 80.0f;
 const float traversalCost = 1.0f;
 const float emptyBonus = 0.5f;
 
@@ -736,6 +744,16 @@ class KDTree : public IntersectionAccelerator
 
 	virtual void build(Purpose purpose) override
 	{
+		if (purpose == Purpose::Instances)
+		{
+			m_MaxPrimsPerNode = 1;
+			m_IntersectionCost = 160.0f;
+		}
+		else
+		{
+			m_MaxPrimsPerNode = 4;
+			m_IntersectionCost = 80.0f;
+		}
 		Timer timer;
 		printf("Building %s KDTree with %d primitives\n", purpose == Purpose::Instances ? "instancing" : "mesh", (int)m_Primitives.size());
 		m_MaxDepth = std::round(8 + 1.3f * std::log2(m_Primitives.size())); // pbr book
@@ -789,7 +807,7 @@ class KDTree : public IntersectionAccelerator
 		
 		m_NextFreeNode++;
 
-		if (primCount <= maxPrims || depthLeft == 0) // We can create a leaf here
+		if (primCount <= m_MaxPrimsPerNode || depthLeft == 0) // We can create a leaf here
 		{
 			m_Nodes[nodeIdx].initLeaf(primIds, primCount, m_PrimIds);
 			return;
@@ -798,7 +816,7 @@ class KDTree : public IntersectionAccelerator
 		int bestAxis = -1;
 		int bestOffset = -1;
 		float bestCost = std::numeric_limits<float>::infinity();
-		float oldCost = intersectionCost * primCount;
+		float oldCost = m_IntersectionCost * primCount;
 		float invArea = 1.0f / curBounds.area();
 		vec3 diag = curBounds.max - curBounds.min;
 
@@ -839,7 +857,7 @@ class KDTree : public IntersectionAccelerator
 				float aboveProb = aboveArea * invArea;
 
 				float bonus = (aboveCount == 0 || belowCount == 0) ? emptyBonus : 0;
-				float cost = traversalCost + intersectionCost * (1 - bonus) * (belowProb * belowCount + aboveProb * aboveCount);
+				float cost = traversalCost + m_IntersectionCost * (1 - bonus) * (belowProb * belowCount + aboveProb * aboveCount);
 
 				if (cost < bestCost)
 				{
@@ -990,6 +1008,8 @@ class KDTree : public IntersectionAccelerator
 	uint32_t m_MaxDepth;
 	uint32_t m_NextFreeNode = 0, m_Allocated = 0;
 	std::vector<Intersectable*> m_Primitives;
+	uint32_t m_MaxPrimsPerNode = 2;
+	float m_IntersectionCost = 80.0f;
 };
 
 AcceleratorPtr makeAccelerator(AcceleratorType acceleratorType) {
