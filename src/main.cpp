@@ -237,6 +237,7 @@ void sceneCustomMesh(Scene& scene, const std::string& filepath)
 int main(int argc, char *argv[]) {
 	RenderLog::StartUp();
 	const int threadCount = std::max<unsigned>(std::thread::hardware_concurrency() - 1, 1); // Does not utilize 100%, but threads are "more in sync"
+	// const int threadCount = 1;
 	ThreadManager tm(threadCount);
 	// Slightly backwards logic
 #ifdef WINDOW

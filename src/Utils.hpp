@@ -134,6 +134,12 @@ inline vec3 operator/(vec3 v, float t) {
 	return (1 / t) * v;
 }
 
+inline vec3 operator/(float t, vec3 f)
+{
+	float inv = 1.0f / t;
+	return f * t;
+}
+
 inline vec3 max(const vec3 &a, const vec3 &b) {
 	return {
 		std::max(a.x, b.x),
@@ -236,6 +242,72 @@ struct BBox {
 		        min.z - 1e-6 <= point.z && point.z <= max.z + 1e-6);
 	}
 
+	inline float gamma(int n) const {
+		return (n * std::numeric_limits<float>::epsilon() * 0.5) / (1 - n * std::numeric_limits<float>::epsilon() * 0.5);
+	}
+
+	bool intersectP(const Ray& ray, float* hitt0, float* hitt1, float tMax) const {
+		float t0 = 0, t1 = tMax;
+		for (int i = 0; i < 3; ++i) {
+			float invRayDir = 1 / ray.dir[i];
+			float tNear = (min[i] - ray.origin[i]) * invRayDir;
+			float tFar = (max[i] - ray.origin[i]) * invRayDir;
+
+			// Update parametric interval from slab intersection $t$ values
+			if (tNear > tFar) std::swap(tNear, tFar);
+
+			// Update _tFar_ to ensure robust ray--bounds intersection
+			tFar *= 1 + 2 * gamma(3);
+			t0 = tNear > t0 ? tNear : t0;
+			t1 = tFar < t1 ? tFar : t1;
+			if (t0 > t1) return false;
+		}
+		if (hitt0) *hitt0 = t0;
+		if (hitt1) *hitt1 = t1;
+		return true;
+	}
+
+	bool intersect(const Ray& r, float& tMin, float& tMax)
+	{
+		float tmin = (min.x - r.origin.x) / r.dir.x;
+		float tmax = (max.x - r.origin.x) / r.dir.x;
+
+		if (tmin > tmax) std::swap(tmin, tmax);
+
+		float tymin = (min.y - r.origin.y) / r.dir.y;
+		float tymax = (max.y - r.origin.y) / r.dir.y;
+
+		if (tymin > tymax) std::swap(tymin, tymax);
+
+		if ((tmin > tymax) || (tymin > tmax))
+			return false;
+
+		if (tymin > tmin)
+			tmin = tymin;
+
+		if (tymax < tmax)
+			tmax = tymax;
+
+		float tzmin = (min.z - r.origin.z) / r.dir.z;
+		float tzmax = (max.z - r.origin.z) / r.dir.z;
+
+		if (tzmin > tzmax) std::swap(tzmin, tzmax);
+
+		if ((tmin > tzmax) || (tzmin > tmax))
+			return false;
+
+		if (tzmin > tmin)
+			tmin = tzmin;
+
+		if (tzmax < tmax)
+			tmax = tzmax;
+
+		tMin = tmin;
+		tMax = tmax;
+
+		return true;
+	}
+
 	/// @brief Split the box in 8 equal parts, children are not sorted in any way
 	/// @param parts [out] - where to write the children
 	void octSplit(BBox parts[8]) const {
@@ -295,6 +367,7 @@ struct BBox {
 	}
 
 	/// @brief Check if a ray intersects the box
+	// Why doesn't this have tMin, tMax?
 	bool testIntersect(const Ray& ray) const {
 		// source: https://github.com/anrieff/quaddamage/blob/master/src/bbox.h
 		assert(!isEmpty());
@@ -331,7 +404,7 @@ struct BBox {
 			 * and even if we have the chance to intersect the "up" wall, we'd be intersection the "right"
 			 * wall first. So we can just skip any further intersection tests for this axis.
 			 * This may seem bogus at first, as it doesn't work if the camera is inside the BBox, but then we would
-			 * have quitted the function because of the inside(ray.start) condition in the first line of the function.
+			 * have quit the function because of the inside(ray.start) condition in the first line of the function.
 			 */
 			float x = ray.origin[u] + ray.dir[u] * dist;
 			if (min[u] <= x && x <= max[u]) {
