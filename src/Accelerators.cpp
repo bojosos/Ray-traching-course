@@ -297,10 +297,8 @@ struct BVHTree : IntersectionAccelerator {
 		const int firstBitIndex = 62 - 12;
 		m_OrderedPrims.resize(m_Primitives.size());
 		for (int i = 0; i < treeletsToBuild.size(); i++)
-		{
-			Treelet& treelet = treeletsToBuild[i];
-			treelet.nodes = buildLBVH(treelet.nodes, &mortonPrims[treelet.startIdx], treelet.primitiveCount, totalNodes, orderedPrimsOffset, firstBitIndex);
-		}
+			treeletsToBuild[i].nodes = buildTreelets(treeletsToBuild[i].nodes, &mortonPrims[treeletsToBuild[i].startIdx], treeletsToBuild[i].primitiveCount, totalNodes, orderedPrimsOffset, firstBitIndex);
+
 		std::vector<Node*> finishedTreelets; // Create the rest of the tree using SAH
 		finishedTreelets.reserve(treeletsToBuild.size());
 		for (Treelet& treelet : treeletsToBuild)
@@ -329,7 +327,7 @@ struct BVHTree : IntersectionAccelerator {
 		printf("Built BVH with %d nodes in %f seconds\n", totalNodes, Timer::toMs<float>(timer.elapsedNs()) / 1000.0f);
 	}
 
-	Node* buildLBVH(Node *&buildNodes, MortonPrim* mortonPrims, int primitiveCount, int& totalNodes, int& orderedPrimsOffset, int bitIdx)
+	Node* buildTreelets(Node *&buildNodes, MortonPrim* mortonPrims, int primitiveCount, int& totalNodes, int& orderedPrimsOffset, int bitIdx)
 	{
 		if (bitIdx == -1 || primitiveCount < maxPrimsInNode) // We need to create a leaf, either because we can fit the nodes left in a single leaf, or because we can't split
 		{
@@ -350,23 +348,26 @@ struct BVHTree : IntersectionAccelerator {
 		else // Create an internal node with two children
 		{
 			int mask = 1 << bitIdx;
-			if ((mortonPrims[0].mortonCode & mask) == ((mortonPrims[primitiveCount - 1].mortonCode & mask)))
-				return buildLBVH(buildNodes, mortonPrims, primitiveCount, totalNodes, orderedPrimsOffset, bitIdx - 1);
+			if ((mortonPrims[0].mortonCode & mask) == ((mortonPrims[primitiveCount - 1].mortonCode & mask))) // Check if all nodes are on the same side of the plane
+				return buildTreelets(buildNodes, mortonPrims, primitiveCount, totalNodes, orderedPrimsOffset, bitIdx - 1);
 			int l = 0, r = primitiveCount - 1;
-			while (l + 1 != r) // binary search for region
+			while (l + 1 != r) // binary search for region where bitIdx bit goes from 0 to 1
 			{
 				int mid = (l + r) / 2;
-				if ((mortonPrims[l].mortonCode & mask) == (mortonPrims[mid].mortonCode & mask)) // search for region with matching bits
+				// std::cout << std::bitset<32>(mortonPrims[l].mortonCode).to_string() << std::endl;
+				// std::cout << std::bitset<32>(mortonPrims[mid].mortonCode).to_string() << std::endl;
+				if ((mortonPrims[l].mortonCode & mask) == (mortonPrims[mid].mortonCode & mask))
 					l = mid;
 				else
 					r = mid;
 			}
-			int splitOffset = r;
+			int splitOffset = r; // Primitives are already on correct sides of plane
 			totalNodes++;
 			Node* node = buildNodes++;
-			Node* lbvh[2] = { buildLBVH(buildNodes, mortonPrims, splitOffset, totalNodes, orderedPrimsOffset, bitIdx - 1), buildLBVH(buildNodes, &mortonPrims[splitOffset], primitiveCount - splitOffset, totalNodes, orderedPrimsOffset, bitIdx - 1)};
+			Node* node1 = buildTreelets(buildNodes, mortonPrims, splitOffset, totalNodes, orderedPrimsOffset, bitIdx - 1);
+			Node* node2 = buildTreelets(buildNodes, &mortonPrims[splitOffset], primitiveCount - splitOffset, totalNodes, orderedPrimsOffset, bitIdx - 1);
 			int axis = bitIdx % 3;
-			node->initInterior(axis, lbvh[0], lbvh[1]);
+			node->initInterior(axis, node1, node2);
 			return node;
 		}
 	}
@@ -620,7 +621,7 @@ BVHTree::Node* BVHTree::connectTreelets(std::vector<Node*>& roots, int start, in
 		}
 	}
 
-	BVHBuildNode** pmid = std::partition(&roots[start], &roots[end - 1] + 1, [=](const BVHBuildNode* node)
+	Node** pmid = std::partition(&roots[start], &roots[end - 1] + 1, [=](const BVHBuildNode* node)
 		{
 			float centroid = (node->bounds.min[minDim] + node->bounds.max[minDim]) * 0.5f;
 			int b = bucketCount * (((centroid - centroidBounds.min[minDim]) / (centroidBounds.max[minDim] - centroidBounds.min[minDim])));
@@ -631,7 +632,7 @@ BVHTree::Node* BVHTree::connectTreelets(std::vector<Node*>& roots, int start, in
 			return b <= minCostBucketIdx;
 		});
 	int mid = pmid - &roots[0];
-	node->InitInterior(minDim, buildUpperSAH(roots, start, mid, totalNodes), buildUpperSAH(roots, mid, end, totalNodes));
+	node->initInterior(minDim, connectTreelets(roots, start, mid, totalNodes), connectTreelets(roots, mid, end, totalNodes));
 	return node;
 #endif
 }
@@ -642,7 +643,9 @@ const uint32_t maxPrims = 4;
 const float intersectionCost = 80.0f;
 const float traversalCost = 1.0f;
 const float emptyBonus = 0.5f;
+
 #define uint int
+
 class KDTree : public IntersectionAccelerator
 {
 	// PBR Book layout
