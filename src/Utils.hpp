@@ -246,8 +246,8 @@ struct BBox {
 		return (n * std::numeric_limits<float>::epsilon() * 0.5) / (1 - n * std::numeric_limits<float>::epsilon() * 0.5);
 	}
 
-	bool intersectP(const Ray& ray, float* hitt0, float* hitt1, float tMax) const {
-		float t0 = 0, t1 = tMax;
+	bool intersectP(const Ray& ray, float& tmin, float& tmax) const {
+		float t0 = 0, t1 = tmax;
 		for (int i = 0; i < 3; ++i) {
 			float invRayDir = 1 / ray.dir[i];
 			float tNear = (min[i] - ray.origin[i]) * invRayDir;
@@ -262,49 +262,8 @@ struct BBox {
 			t1 = tFar < t1 ? tFar : t1;
 			if (t0 > t1) return false;
 		}
-		if (hitt0) *hitt0 = t0;
-		if (hitt1) *hitt1 = t1;
-		return true;
-	}
-
-	bool intersect(const Ray& r, float& tMin, float& tMax)
-	{
-		float tmin = (min.x - r.origin.x) / r.dir.x;
-		float tmax = (max.x - r.origin.x) / r.dir.x;
-
-		if (tmin > tmax) std::swap(tmin, tmax);
-
-		float tymin = (min.y - r.origin.y) / r.dir.y;
-		float tymax = (max.y - r.origin.y) / r.dir.y;
-
-		if (tymin > tymax) std::swap(tymin, tymax);
-
-		if ((tmin > tymax) || (tymin > tmax))
-			return false;
-
-		if (tymin > tmin)
-			tmin = tymin;
-
-		if (tymax < tmax)
-			tmax = tymax;
-
-		float tzmin = (min.z - r.origin.z) / r.dir.z;
-		float tzmax = (max.z - r.origin.z) / r.dir.z;
-
-		if (tzmin > tzmax) std::swap(tzmin, tzmax);
-
-		if ((tmin > tzmax) || (tzmin > tmax))
-			return false;
-
-		if (tzmin > tmin)
-			tmin = tzmin;
-
-		if (tzmax < tmax)
-			tmax = tzmax;
-
-		tMin = tmin;
-		tMax = tmax;
-
+		tmin = t0;
+		tmax = t1;
 		return true;
 	}
 

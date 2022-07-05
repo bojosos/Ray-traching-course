@@ -8,8 +8,6 @@
 #include <iostream>
 #include <bitset>
 
-const int maxPrimsInNode = 2;
-
 struct OctTree : IntersectionAccelerator {
 	struct Node {
 		BBox box;
@@ -146,6 +144,7 @@ struct OctTree : IntersectionAccelerator {
 	}
 };
 
+const int maxPrimsInNode = 2;
 // HLBVH
 struct BVHTree : IntersectionAccelerator {
 
@@ -299,12 +298,10 @@ struct BVHTree : IntersectionAccelerator {
 		m_OrderedPrims.resize(m_Primitives.size());
 		for (int i = 0; i < treeletsToBuild.size(); i++)
 		{
-			int nodesCreated = 0;
 			Treelet& treelet = treeletsToBuild[i];
-			treelet.nodes = emitLBVH(treelet.nodes, &mortonPrims[treelet.startIdx], treelet.primitiveCount, nodesCreated, orderedPrimsOffset, firstBitIndex);
-			totalNodes += nodesCreated;
+			treelet.nodes = buildLBVH(treelet.nodes, &mortonPrims[treelet.startIdx], treelet.primitiveCount, totalNodes, orderedPrimsOffset, firstBitIndex);
 		}
-		std::vector<Node*> finishedTreelets; // Create the reset of the tree using SAH
+		std::vector<Node*> finishedTreelets; // Create the rest of the tree using SAH
 		finishedTreelets.reserve(treeletsToBuild.size());
 		for (Treelet& treelet : treeletsToBuild)
 			finishedTreelets.push_back(treelet.nodes);
@@ -332,7 +329,7 @@ struct BVHTree : IntersectionAccelerator {
 		printf("Built BVH with %d nodes in %f seconds\n", totalNodes, Timer::toMs<float>(timer.elapsedNs()) / 1000.0f);
 	}
 
-	Node* emitLBVH(Node *&buildNodes, MortonPrim* mortonPrims, int primitiveCount, int& totalNodes, int& orderedPrimsOffset, int bitIdx)
+	Node* buildLBVH(Node *&buildNodes, MortonPrim* mortonPrims, int primitiveCount, int& totalNodes, int& orderedPrimsOffset, int bitIdx)
 	{
 		if (bitIdx == -1 || primitiveCount < maxPrimsInNode) // We need to create a leaf, either because we can fit the nodes left in a single leaf, or because we can't split
 		{
@@ -354,7 +351,7 @@ struct BVHTree : IntersectionAccelerator {
 		{
 			int mask = 1 << bitIdx;
 			if ((mortonPrims[0].mortonCode & mask) == ((mortonPrims[primitiveCount - 1].mortonCode & mask)))
-				return emitLBVH(buildNodes, mortonPrims, primitiveCount, totalNodes, orderedPrimsOffset, bitIdx - 1);
+				return buildLBVH(buildNodes, mortonPrims, primitiveCount, totalNodes, orderedPrimsOffset, bitIdx - 1);
 			int l = 0, r = primitiveCount - 1;
 			while (l + 1 != r) // binary search for region
 			{
@@ -367,7 +364,7 @@ struct BVHTree : IntersectionAccelerator {
 			int splitOffset = r;
 			totalNodes++;
 			Node* node = buildNodes++;
-			Node* lbvh[2] = { emitLBVH(buildNodes, mortonPrims, splitOffset, totalNodes, orderedPrimsOffset, bitIdx - 1), emitLBVH(buildNodes, &mortonPrims[splitOffset], primitiveCount - splitOffset, totalNodes, orderedPrimsOffset, bitIdx - 1)};
+			Node* lbvh[2] = { buildLBVH(buildNodes, mortonPrims, splitOffset, totalNodes, orderedPrimsOffset, bitIdx - 1), buildLBVH(buildNodes, &mortonPrims[splitOffset], primitiveCount - splitOffset, totalNodes, orderedPrimsOffset, bitIdx - 1)};
 			int axis = bitIdx % 3;
 			node->initInterior(axis, lbvh[0], lbvh[1]);
 			return node;
@@ -638,8 +635,8 @@ BVHTree::Node* BVHTree::connectTreelets(std::vector<Node*>& roots, int start, in
 	return node;
 #endif
 }
-#include "Primitive.h"
 
+#include "Primitive.h"
 
 const uint32_t maxPrims = 4;
 const float intersectionCost = 80.0f;
@@ -774,7 +771,6 @@ class KDTree : public IntersectionAccelerator
 
 	void build(uint32_t nodeIdx, const BBox& curBounds, const std::vector<BBox>& bounds, uint32_t* primIds, size_t primCount, uint32_t depthLeft, BoundEdge* edges[3], uint32_t* prims0, uint32_t* prims1, uint32_t badRefines = 0)
 	{
-		assert(nodeIdx == m_NextFreeNode);
 		if (m_NextFreeNode == m_Allocated)
 		{
 			uint32_t alloc = std::max(2 * m_Allocated, 512U);
@@ -898,7 +894,7 @@ class KDTree : public IntersectionAccelerator
 		float min = tMin;
 		float max = tMax;
 
-		 if (!m_Bounds.intersectP(ray, &tMin, &tMax, tMax))
+		 if (!m_Bounds.intersectP(ray, tMin, tMax))
 			 return false;
 
 		vec3 invDir = ray.dir.inverted();
@@ -992,8 +988,6 @@ class KDTree : public IntersectionAccelerator
 	uint32_t m_NextFreeNode = 0, m_Allocated = 0;
 	std::vector<Intersectable*> m_Primitives;
 };
-
-
 
 AcceleratorPtr makeAccelerator(AcceleratorType acceleratorType) {
 	switch (acceleratorType)
